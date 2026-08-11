@@ -11,7 +11,7 @@ const SITE_CONFIG = Object.freeze({
     email: "ottieluxe@gmail.com",
     instagramUrl: "https://www.instagram.com/ottieluxe",
     instagramHandle: "ottieluxe",
-    tiktokUrl: "",
+    tiktokUrl: "https://www.tiktok.com/@ottieluxe?lang=en",
     facebookUrl: "https://www.facebook.com/ottieluxe",
     serviceArea: "Zimbabwe — Harare",
     businessHours: "0700 - 1800",
@@ -182,6 +182,22 @@ function formatPrice(value) {
     }).format(value);
 }
 
+function buildUnsplashSrcSet(url) {
+    if (!url.includes("images.unsplash.com")) return "";
+    try {
+        return [320, 520, 720]
+            .map((width) => {
+                const imageUrl = new URL(url);
+                imageUrl.searchParams.set("w", String(width));
+                imageUrl.searchParams.set("q", "74");
+                return `${imageUrl.toString()} ${width}w`;
+            })
+            .join(", ");
+    } catch {
+        return "";
+    }
+}
+
 function createProductCard(product, compact = false) {
     const article = document.createElement("article");
     article.className = "product-card";
@@ -197,6 +213,11 @@ function createProductCard(product, compact = false) {
     image.height = 750;
     image.loading = "lazy";
     image.decoding = "async";
+    const imageSrcSet = buildUnsplashSrcSet(product.image);
+    if (imageSrcSet) {
+        image.srcset = imageSrcSet;
+        image.sizes = "(max-width: 350px) calc(100vw - 24px), (max-width: 767px) 50vw, (max-width: 1023px) 33vw, 25vw";
+    }
     image.addEventListener("error", () => {
         image.remove();
         imageWrap.classList.add("image-error");
@@ -235,11 +256,13 @@ function createProductCard(product, compact = false) {
     price.className = "product-card__price";
     const currentPrice = document.createElement("span");
     currentPrice.textContent = formatPrice(product.price);
+    currentPrice.setAttribute("aria-label", `Current price ${formatPrice(product.price)}`);
     price.append(currentPrice);
     if (product.oldPrice) {
         const oldPrice = document.createElement("span");
         oldPrice.className = "product-card__old-price";
         oldPrice.textContent = formatPrice(product.oldPrice);
+        oldPrice.setAttribute("aria-label", `Previous price ${formatPrice(product.oldPrice)}`);
         price.append(oldPrice);
     }
 
@@ -248,7 +271,14 @@ function createProductCard(product, compact = false) {
     order.href = "#contact";
     order.dataset.message = `Hi Ottie Luxe, I'm interested in the ${product.name}. Is it still available?`;
     order.setAttribute("aria-label", `Order ${product.name} on WhatsApp`);
-    order.append(createIcon("icon-whatsapp"), document.createTextNode(compact ? "Enquire" : "Order on WhatsApp"));
+    order.append(createIcon("icon-whatsapp"));
+    const fullLabel = document.createElement("span");
+    fullLabel.className = "product-button__full";
+    fullLabel.textContent = compact ? "Enquire" : "Order on WhatsApp";
+    const shortLabel = document.createElement("span");
+    shortLabel.className = "product-button__short";
+    shortLabel.textContent = "Enquire";
+    order.append(fullLabel, shortLabel);
 
     body.append(category, name, description, price, order);
     article.append(imageWrap, body);
@@ -264,6 +294,12 @@ function renderProducts(filter = "all") {
 
     const fragment = document.createDocumentFragment();
     visibleProducts.forEach((product) => fragment.append(createProductCard(product)));
+    if (!visibleProducts.length) {
+        const emptyState = document.createElement("p");
+        emptyState.className = "notice";
+        emptyState.textContent = "No pieces are listed in this category yet. Please check another collection or ask us on WhatsApp.";
+        fragment.append(emptyState);
+    }
     productGrid.replaceChildren(fragment);
     productCount.textContent = `${visibleProducts.length} ${visibleProducts.length === 1 ? "piece" : "pieces"} in this edit`;
 }
@@ -324,7 +360,7 @@ function toggleFavourite(button) {
     document.querySelectorAll(`[data-favourite-id="${CSS.escape(id)}"]`).forEach((matchingButton) => {
         matchingButton.classList.toggle("is-favourite", !isSaved);
         matchingButton.setAttribute("aria-pressed", String(!isSaved));
-        matchingButton.setAttribute("aria-label", `${isSaved ? "Save" : "Remove"} ${product.name} ${isSaved ? "as" : "from"} favourites`);
+        matchingButton.setAttribute("aria-label", `${isSaved ? "Save" : "Remove"} ${product.name} ${isSaved ? "to" : "from"} favourites`);
     });
     showToast(isSaved ? `${product.name} removed from favourites.` : `${product.name} saved to favourites.`);
 }
@@ -351,7 +387,7 @@ function showToast(message) {
     toastTimer = window.setTimeout(() => toast.classList.remove("is-visible"), 3600);
 }
 
-function createContactItem(icon, label, value, href = "") {
+function createContactItem(icon, label, value, href = "", external = false) {
     const item = document.createElement("li");
     item.className = "contact-item";
     const iconWrap = document.createElement("span");
@@ -365,7 +401,12 @@ function createContactItem(icon, label, value, href = "") {
     text.append(small, strong);
     if (href) {
         const link = document.createElement("a");
+        link.className = "contact-item__link";
         link.href = href;
+        if (external) {
+            link.target = "_blank";
+            link.rel = "noopener noreferrer";
+        }
         link.append(iconWrap, text);
         item.append(link);
     } else {
@@ -378,7 +419,9 @@ function renderContactDetails() {
     const list = document.querySelector("#contact-details");
     const phoneValue = SITE_CONFIG.phoneDisplay || "Add WhatsApp / phone number";
     const emailValue = SITE_CONFIG.email || "Add business email";
-    const instagramValue = SITE_CONFIG.instagramHandle || "Add Instagram username";
+    const instagramValue = SITE_CONFIG.instagramHandle
+        ? `@${SITE_CONFIG.instagramHandle.replace(/^@/, "")}`
+        : "Add Instagram username";
     const phoneHref = SITE_CONFIG.phoneDisplay ? `tel:${SITE_CONFIG.phoneDisplay.replace(/[^+\d]/g, "")}` : "";
     const emailHref = SITE_CONFIG.email ? `mailto:${SITE_CONFIG.email}` : "";
     const instagramHref = SITE_CONFIG.instagramUrl || "";
@@ -386,7 +429,7 @@ function renderContactDetails() {
     list.replaceChildren(
         createContactItem("phone", "Phone / WhatsApp", phoneValue, phoneHref),
         createContactItem("email", "Email", emailValue, emailHref),
-        createContactItem("instagram", "Instagram", instagramValue, instagramHref),
+        createContactItem("instagram", "Instagram", instagramValue, instagramHref, true),
         createContactItem("location", "Service area", SITE_CONFIG.serviceArea),
         createContactItem("hours", "Business hours", SITE_CONFIG.businessHours),
     );
@@ -409,33 +452,37 @@ function createSocialLink(icon, label, href) {
 
 function renderSocialLinks() {
     const social = document.querySelector("#social-links");
-    social.replaceChildren(
-        createSocialLink("instagram", "Instagram", SITE_CONFIG.instagramUrl),
-        createSocialLink("tiktok", "TikTok", SITE_CONFIG.tiktokUrl),
-        createSocialLink("facebook", "Facebook", SITE_CONFIG.facebookUrl),
-    );
+    const whatsappNumber = cleanWhatsAppNumber(SITE_CONFIG.whatsappNumber);
+    const whatsappUrl = whatsappNumber
+        ? `https://wa.me/${whatsappNumber}?text=${encodeURIComponent("Hi Ottie Luxe, I'd like to make an enquiry.")}`
+        : "";
+    const socialItems = [
+        ["instagram", "Instagram", SITE_CONFIG.instagramUrl],
+        ["tiktok", "TikTok", SITE_CONFIG.tiktokUrl],
+        ["facebook", "Facebook", SITE_CONFIG.facebookUrl],
+        ["whatsapp", "WhatsApp", whatsappUrl],
+    ].filter(([, , href]) => href);
+    social.replaceChildren(...socialItems.map(([icon, label, href]) => createSocialLink(icon, label, href)));
 
     const footer = document.querySelector("#footer-connect");
     const items = [
         ["Instagram", SITE_CONFIG.instagramUrl],
         ["TikTok", SITE_CONFIG.tiktokUrl],
         ["Facebook", SITE_CONFIG.facebookUrl],
-    ];
+        ["WhatsApp", whatsappUrl],
+        ["Email", SITE_CONFIG.email ? `mailto:${SITE_CONFIG.email}` : ""],
+    ].filter(([, href]) => href);
     const fragment = document.createDocumentFragment();
     items.forEach(([label, href]) => {
         const item = document.createElement("li");
-        if (href) {
-            const link = document.createElement("a");
-            link.href = href;
+        const link = document.createElement("a");
+        link.href = href;
+        if (!href.startsWith("mailto:")) {
             link.target = "_blank";
             link.rel = "noopener noreferrer";
-            link.textContent = label;
-            item.append(link);
-        } else {
-            const span = document.createElement("span");
-            span.textContent = `${label} · add link`;
-            item.append(span);
         }
+        link.textContent = label;
+        item.append(link);
         fragment.append(item);
     });
     footer.replaceChildren(fragment);
@@ -446,26 +493,75 @@ function setupMobileMenu() {
     const menu = document.querySelector("#mobile-menu");
     if (!toggle || !menu) return;
 
-    function setMenu(open) {
+    const focusableSelector = "a[href], button:not([disabled])";
+
+    function updateMenuPosition() {
+        if (menu.hidden) return;
+        const headerBottom = document.querySelector(".site-header")?.getBoundingClientRect().bottom || 72;
+        menu.style.height = `${Math.max(240, window.innerHeight - headerBottom)}px`;
+    }
+
+    function setMenu(open, restoreFocus = false) {
         toggle.setAttribute("aria-expanded", String(open));
         toggle.setAttribute("aria-label", open ? "Close navigation menu" : "Open navigation menu");
         menu.hidden = !open;
         document.body.classList.toggle("menu-open", open);
+        if (open) {
+            updateMenuPosition();
+            window.requestAnimationFrame(() => menu.querySelector(focusableSelector)?.focus());
+        } else {
+            menu.style.removeProperty("height");
+            if (restoreFocus) toggle.focus();
+        }
     }
 
-    toggle.addEventListener("click", () => setMenu(toggle.getAttribute("aria-expanded") !== "true"));
+    toggle.addEventListener("click", () => {
+        const willOpen = toggle.getAttribute("aria-expanded") !== "true";
+        setMenu(willOpen, !willOpen);
+    });
     menu.addEventListener("click", (event) => {
         if (event.target.closest("a")) setMenu(false);
     });
     document.addEventListener("keydown", (event) => {
-        if (event.key === "Escape" && toggle.getAttribute("aria-expanded") === "true") {
-            setMenu(false);
-            toggle.focus();
+        if (toggle.getAttribute("aria-expanded") !== "true") return;
+        if (event.key === "Escape") {
+            setMenu(false, true);
+            return;
+        }
+        if (event.key === "Tab") {
+            const focusable = [toggle, ...menu.querySelectorAll(focusableSelector)];
+            const first = focusable[0];
+            const last = focusable.at(-1);
+            if (event.shiftKey && document.activeElement === first) {
+                event.preventDefault();
+                last.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault();
+                first.focus();
+            }
         }
     });
+    window.addEventListener("scroll", updateMenuPosition, { passive: true });
     window.addEventListener("resize", () => {
         if (window.innerWidth >= 1024) setMenu(false);
+        else updateMenuPosition();
     });
+}
+
+function updateStructuredData() {
+    const schemaNode = document.querySelector("#business-schema");
+    if (!schemaNode) return;
+    try {
+        const schema = JSON.parse(schemaNode.textContent);
+        const sameAs = [SITE_CONFIG.instagramUrl, SITE_CONFIG.tiktokUrl, SITE_CONFIG.facebookUrl].filter(Boolean);
+        schema.areaServed = SITE_CONFIG.serviceArea || "Zimbabwe";
+        schema.sameAs = sameAs;
+        if (SITE_CONFIG.phoneDisplay) schema.telephone = SITE_CONFIG.phoneDisplay;
+        if (SITE_CONFIG.email) schema.email = SITE_CONFIG.email;
+        schemaNode.textContent = JSON.stringify(schema);
+    } catch {
+        // Static metadata remains available if custom schema data cannot be updated.
+    }
 }
 
 function setupScrollEffects() {
@@ -522,6 +618,7 @@ function initialise() {
     renderNewArrivals();
     renderContactDetails();
     renderSocialLinks();
+    updateStructuredData();
     setupMobileMenu();
     setupScrollEffects();
     document.addEventListener("click", handleDocumentClick);
