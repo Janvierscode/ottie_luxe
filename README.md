@@ -4,10 +4,10 @@ Phase 2 is a mobile-first Next.js catalogue with shareable product pages, a pers
 
 ## Local preview
 
-1. Use Node.js 22 and pnpm 11.16.
-2. Install packages with `pnpm install`.
+1. Use Node.js 22 or newer.
+2. Install packages with `npm install`.
 3. Copy `.env.example` to `.env.local` and keep the Supabase values empty for safe preview data.
-4. Run `pnpm dev` and open `http://localhost:3000`.
+4. Run `npm run dev` and open `http://localhost:3000`.
 
 The storefront works without Supabase by using the seed catalogue in `lib/seed-data.ts`. The owner route honestly displays setup guidance until Supabase is connected.
 
@@ -28,12 +28,12 @@ Create an Umami Cloud website and set `NEXT_PUBLIC_UMAMI_WEBSITE_ID`. Leave it b
 
 ## Verification
 
-- `pnpm lint`
-- `pnpm typecheck`
-- `pnpm test`
-- `pnpm build`
-- `pnpm exec playwright install chromium firefox webkit`
-- `pnpm test:e2e`
+- `npm run lint`
+- `npm run typecheck`
+- `npm test`
+- `npm run build`
+- `npx playwright install chromium firefox webkit`
+- `npm run test:e2e`
 - `supabase test db` (after starting the local Supabase stack)
 
 ## Release flow
