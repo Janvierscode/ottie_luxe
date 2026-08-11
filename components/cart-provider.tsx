@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useMemo, useState, useSyncExternalStore } from "react";
 import type { BasketItem, Product } from "@/lib/types";
 import { normalizeQuantity, sanitizeBasket } from "@/lib/catalogue";
 import { trackEvent } from "@/lib/analytics";
@@ -26,50 +26,73 @@ type CartContextValue = {
 
 const CartContext = createContext<CartContextValue | null>(null);
 
-function readStoredArray(key: string): unknown[] {
+const fallbackStorage = new Map<string, string>();
+const storageListeners = new Map<string, Set<() => void>>();
+
+function readStoredValue(key: string) {
   try {
-    const value = JSON.parse(window.localStorage.getItem(key) || "[]");
+    return window.localStorage.getItem(key) || fallbackStorage.get(key) || "[]";
+  } catch {
+    return fallbackStorage.get(key) || "[]";
+  }
+}
+
+function readStoredArray(raw: string): unknown[] {
+  try {
+    const value = JSON.parse(raw);
     return Array.isArray(value) ? value : [];
   } catch {
     return [];
   }
 }
 
-function readBasket(): BasketItem[] {
-  return sanitizeBasket(readStoredArray(BASKET_KEY));
+function readBasket(raw: string): BasketItem[] {
+  return sanitizeBasket(readStoredArray(raw));
 }
 
-function readFavourites(): string[] {
-  return [...new Set(readStoredArray(FAVOURITES_KEY).filter((value): value is string => typeof value === "string"))].slice(0, 100);
+function readFavourites(raw: string): string[] {
+  return [...new Set(readStoredArray(raw).filter((value): value is string => typeof value === "string"))].slice(0, 100);
 }
 
 function storeValue(key: string, value: unknown) {
+  const raw = JSON.stringify(value);
+  fallbackStorage.set(key, raw);
   try {
-    window.localStorage.setItem(key, JSON.stringify(value));
+    window.localStorage.setItem(key, raw);
   } catch {
     // Browsing remains functional when local storage is blocked or full.
   }
+  storageListeners.get(key)?.forEach((listener) => listener());
+}
+
+function subscribeToStorage(key: string, listener: () => void) {
+  const listeners = storageListeners.get(key) || new Set<() => void>();
+  listeners.add(listener);
+  storageListeners.set(key, listeners);
+  const onStorage = (event: StorageEvent) => {
+    if (event.key === key) listener();
+  };
+  window.addEventListener("storage", onStorage);
+  return () => {
+    listeners.delete(listener);
+    window.removeEventListener("storage", onStorage);
+  };
+}
+
+function useStoredValue(key: string) {
+  return useSyncExternalStore(
+    (listener) => subscribeToStorage(key, listener),
+    () => readStoredValue(key),
+    () => "[]",
+  );
 }
 
 export function CartProvider({ products, children }: { products: Product[]; children: React.ReactNode }) {
-  const [items, setItems] = useState<BasketItem[]>([]);
-  const [favourites, setFavourites] = useState<string[]>([]);
+  const basketValue = useStoredValue(BASKET_KEY);
+  const favouritesValue = useStoredValue(FAVOURITES_KEY);
+  const items = useMemo(() => readBasket(basketValue), [basketValue]);
+  const favourites = useMemo(() => readFavourites(favouritesValue), [favouritesValue]);
   const [isCartOpen, setCartOpen] = useState(false);
-  const [hydrated, setHydrated] = useState(false);
-
-  useEffect(() => {
-    setItems(readBasket());
-    setFavourites(readFavourites());
-    setHydrated(true);
-  }, []);
-
-  useEffect(() => {
-    if (hydrated) storeValue(BASKET_KEY, items);
-  }, [hydrated, items]);
-
-  useEffect(() => {
-    if (hydrated) storeValue(FAVOURITES_KEY, favourites);
-  }, [favourites, hydrated]);
 
   const addItem = useCallback(
     (productId: string, variantId: string | null = null, quantity = 1): AddResult => {
@@ -90,19 +113,17 @@ export function CartProvider({ products, children }: { products: Product[]; chil
       if (existingIndex === -1 && items.length >= 10) {
         return { ok: false, reason: "Your basket can hold up to 10 different selections." };
       }
-      setItems((current) => {
-        const currentIndex = current.findIndex(
-          (item) => item.productId === productId && item.variantId === variantId,
-        );
-        if (currentIndex >= 0) {
-          return current.map((item, index) =>
-            index === currentIndex
-              ? { ...item, quantity: normalizeQuantity(item.quantity + quantity) }
-              : item,
-          );
-        }
-        return [...current, { productId, variantId, quantity: normalizeQuantity(quantity) }];
-      });
+      const currentIndex = items.findIndex(
+        (item) => item.productId === productId && item.variantId === variantId,
+      );
+      const nextItems = currentIndex >= 0
+        ? items.map((item, index) =>
+          index === currentIndex
+            ? { ...item, quantity: normalizeQuantity(item.quantity + quantity) }
+            : item,
+        )
+        : [...items, { productId, variantId, quantity: normalizeQuantity(quantity) }];
+      storeValue(BASKET_KEY, nextItems);
       trackEvent("add_to_basket", { product: product.slug });
       return { ok: true };
     },
@@ -110,31 +131,34 @@ export function CartProvider({ products, children }: { products: Product[]; chil
   );
 
   const removeItem = useCallback((productId: string, variantId: string | null = null) => {
-    setItems((current) =>
-      current.filter((item) => !(item.productId === productId && item.variantId === variantId)),
+    storeValue(
+      BASKET_KEY,
+      items.filter((item) => !(item.productId === productId && item.variantId === variantId)),
     );
-  }, []);
+  }, [items]);
 
   const updateQuantity = useCallback(
     (productId: string, variantId: string | null, quantity: number) => {
-      setItems((current) =>
-        current.map((item) =>
+      storeValue(
+        BASKET_KEY,
+        items.map((item) =>
           item.productId === productId && item.variantId === variantId
             ? { ...item, quantity: normalizeQuantity(quantity) }
             : item,
         ),
       );
     },
-    [],
+    [items],
   );
 
   const toggleFavourite = useCallback((productId: string) => {
-    setFavourites((current) =>
-      current.includes(productId)
-        ? current.filter((id) => id !== productId)
-        : [...current, productId],
+    storeValue(
+      FAVOURITES_KEY,
+      favourites.includes(productId)
+        ? favourites.filter((id) => id !== productId)
+        : [...favourites, productId],
     );
-  }, []);
+  }, [favourites]);
 
   const value = useMemo<CartContextValue>(
     () => ({
@@ -146,7 +170,7 @@ export function CartProvider({ products, children }: { products: Product[]; chil
       addItem,
       removeItem,
       updateQuantity,
-      clearCart: () => setItems([]),
+      clearCart: () => storeValue(BASKET_KEY, []),
       toggleFavourite,
       openCart: () => {
         setCartOpen(true);

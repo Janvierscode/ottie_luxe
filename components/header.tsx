@@ -29,8 +29,6 @@ export function Header() {
     if (restoreFocus) window.setTimeout(() => toggleRef.current?.focus(), 0);
   }, []);
 
-  useEffect(() => setOpen(false), [pathname]);
-
   useEffect(() => {
     if (!open) return;
     const previousOverflow = document.body.style.overflow;
