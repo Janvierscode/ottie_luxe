@@ -80,8 +80,11 @@ test("customer can filter, view a product and send a structured basket enquiry",
   await page.getByRole("radio", { name: "Collection", exact: true }).check();
   await page.getByLabel("Optional note").fill("Gift packaging please");
   await page.getByRole("button", { name: /send order enquiry/i }).click();
+  await expect.poll(
+    () => page.evaluate(() => (window as Window & { __lastOpened?: string }).__lastOpened || ""),
+    { timeout: 15_000 },
+  ).toContain("https://wa.me/");
   const opened = await page.evaluate(() => (window as Window & { __lastOpened?: string }).__lastOpened || "");
-  expect(opened).toContain("https://wa.me/");
   expect(decodeURIComponent(opened)).toContain("Gold-Tone Drop Earrings");
   expect(decodeURIComponent(opened)).toContain("Tariro");
 });
