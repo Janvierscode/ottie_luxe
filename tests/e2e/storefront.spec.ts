@@ -77,7 +77,7 @@ test("customer can filter, view a product and send a structured basket enquiry",
   await card.getByRole("button", { name: /add to basket/i }).click();
   await expect(page.getByRole("dialog", { name: "WhatsApp basket" })).toBeVisible();
   await page.getByLabel("Your name").fill("Tariro");
-  await page.getByLabel("Collection").check();
+  await page.getByRole("radio", { name: "Collection", exact: true }).check();
   await page.getByLabel("Optional note").fill("Gift packaging please");
   await page.getByRole("button", { name: /send order enquiry/i }).click();
   const opened = await page.evaluate(() => (window as Window & { __lastOpened?: string }).__lastOpened || "");

@@ -90,6 +90,7 @@ h3 { font-size: 1.25rem; }
 .brand__text em { color: var(--rose-600); font-weight: 500; }
 .brand--light { color: white; }
 .brand--light .brand__mark { background: var(--champagne); color: var(--plum-950); }
+.brand--light .brand__text em { color: var(--champagne); }
 .desktop-nav { display: none; align-items: center; gap: clamp(14px, 2vw, 28px); }
 .desktop-nav a { position: relative; padding: 24px 0; color: #4e3e45; font-size: .79rem; font-weight: 750; }
 .desktop-nav a::after { content: ""; position: absolute; right: 0; bottom: 18px; left: 0; height: 2px; transform: scaleX(0); background: var(--rose-600); transition: transform var(--transition); }
