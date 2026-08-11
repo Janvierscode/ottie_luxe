@@ -15,7 +15,10 @@ jobs:
         with:
           node-version: 24
       - run: npm install --no-audit --no-fund
-      - run: npm run lint
+      - name: Run lint
+        run: |
+          npx eslint . --format json --output-file eslint-report.json || true
+          node scripts/report-eslint.mjs
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
