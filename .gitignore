@@ -25,3 +25,15 @@ Temporary Items
 !.vscode/launch.json
 !.vscode/extensions.json
 *.code-workspace
+.next/
+node_modules/
+.env
+.env.local
+.env.*.local
+.vercel/
+.codex-cache/
+coverage/
+playwright-report/
+test-results/
+*.tsbuildinfo
+npm-debug.log*
