@@ -71,7 +71,7 @@ test("customer can filter, view a product and send a structured basket enquiry",
     });
   });
   await page.goto("/shop");
-  await page.getByRole("button", { name: "Earrings" }).click();
+  await page.getByRole("button", { name: "Earrings", exact: true }).click();
   await expect(page.getByText(/2 products/)).toBeVisible();
   const card = page.getByRole("article").filter({ hasText: "Gold-Tone Drop Earrings" });
   await card.getByRole("button", { name: /add to basket/i }).click();
